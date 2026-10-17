@@ -158,18 +158,19 @@ addEventListener('hashchange',route);
 const MSG=[['GRAND PRIX — PADDOCK ENTRANCE','PRÉSENTEZ VOTRE ACCRÉDITATION'],['WELCOME TO THE VIP PADDOCK','PRÉSENTEZ VOTRE ACCRÉDITATION'],['PRÉSENTEZ VOTRE ACCRÉDITATION','PADDOCK ACCESS CONTROL']];
 let mi=0;setInterval(()=>{mi=(mi+1)%MSG.length;$('idle').textContent=MSG[mi][0];$('idle2').textContent=MSG[mi][1]},3800);
 let stream=null,camOn=false,locked=false,cool=0,hideT=null;
+function ensureQR(){if(window.jsQR)return Promise.resolve(true);const u=['https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js','https://unpkg.com/jsqr@1.4.0/dist/jsQR.js','https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js'];return u.reduce((p,s)=>p.then(ok=>(ok||window.jsQR)?true:new Promise(r=>{const e=document.createElement('script');e.src=s;e.onload=()=>r(!!window.jsQR);e.onerror=()=>r(false);document.head.appendChild(e)})),Promise.resolve(false))}
 const vid=$('vid'),cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
 $('go').onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280}},audio:false});
- vid.srcObject=stream;await vid.play();camOn=true;$('start').style.display='none';$('st').textContent=window.jsQR?'Scanner actif : présentez un QR code à 30 cm.':'Bibliothèque de scan non chargée : vérifiez Internet ou désactivez le bloqueur de contenu.';loop()}
+ vid.srcObject=stream;await vid.play();camOn=true;$('start').style.display='none';$('st').textContent='Chargement du scanner…';ensureQR().then(ok=>{$('st').textContent=ok?'Scanner actif : présentez un QR code à 30 cm.':'Bibliothèque de scan introuvable : vérifiez Internet, désactivez le bloqueur de contenu, puis rechargez.'});loop()}
  catch(e){$('go').textContent='Caméra refusée — voir Réglages > Safari > Caméra';}};
 function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}camOn=false;$('start').style.display='flex';$('go').textContent='Activer la caméra'}
 function loop(){if(!camOn||!$('scan').classList.contains('on'))return;
- if(!locked&&Date.now()>cool&&vid.videoWidth){const s=Math.min(1,960/vid.videoWidth);cv.width=vid.videoWidth*s;cv.height=vid.videoHeight*s;
+ if(!locked&&Date.now()>cool&&vid.videoWidth&&window.jsQR){const s=Math.min(1,960/vid.videoWidth);cv.width=vid.videoWidth*s;cv.height=vid.videoHeight*s;
   cx.drawImage(vid,0,0,cv.width,cv.height);const im=cx.getImageData(0,0,cv.width,cv.height);
   const r=jsQR(im.data,im.width,im.height,{inversionAttempts:'attemptBoth'});if(r&&r.data)process(r.data.trim())}
  requestAnimationFrame(loop)}
 function process(code){D=load();const g=D.guests.find(x=>x.id===code);
- if(!g)return show('no',null);
+ if(!g)return show('no',null,code);
  if(D.scans[g.id])return show('dup',g,D.scans[g.id]);
  D.scans[g.id]=Date.now();save(D);show('ok',g,D.scans[g.id])}
 $('manb').onclick=()=>{const v=$('man').value.trim().toUpperCase();if(v){process(v);$('man').value=''}};
@@ -182,7 +183,7 @@ function show(k,g,ts){locked=true;const r=$('res');r.dataset.k=k;
  $('rname').innerHTML=g?esc(g.first)+(g.last?'<br>'+esc(g.last):''):'QR CODE<br>INCONNU';
  $('rnum').textContent=g?'#'+g.num:'✕';$('rbig').textContent=g?g.num:'';
  $('rbadge').innerHTML=k==='ok'?'✔ ACCÈS AUTORISÉ':k==='dup'?'⚠ DÉJÀ ENREGISTRÉ':'⛔ ACCÈS NON AUTORISÉ';
- $('rtm').innerHTML=k==='ok'?'ACCESS GRANTED<br>'+fmt(ts)+' · '+entered()+'/'+D.guests.length+' dans le paddock':k==='dup'?'Premier passage à '+fmt(ts):'Aucun invité ne correspond à ce code';
+ $('rtm').innerHTML=k==='ok'?'ACCESS GRANTED<br>'+fmt(ts)+' · '+entered()+'/'+D.guests.length+' dans le paddock':k==='dup'?'Premier passage à '+fmt(ts):'Code lu : '+esc(ts||'')+'<br>Aucun invité ne correspond à ce code';
  r.classList.remove('on');void r.offsetWidth;r.classList.add('on');
  clearTimeout(hideT);hideT=setTimeout(hide,k==='ok'?6000:7000);updCnt();
  try{navigator.vibrate&&navigator.vibrate(k==='ok'?80:[80,60,80])}catch(e){}}
@@ -226,7 +227,7 @@ function renderCards(){D=load();$('cards').innerHTML=D.guests.map(g=>{const t=T[
  <div class="qr"><img src="${qrUrl(g.id,6)}"><small>ALL AREAS<br>ACCRÉDITATION PERSONNELLE<br>${esc(g.id)}</small></div>
  <div class="bot">GRAND PRIX · PADDOCK PASS</div></div>`}).join('')}
 
-if(!window.jsQR||!window.qrcode)setTimeout(()=>alert('Bibliothèques QR non chargées : connexion Internet requise au premier chargement.'),800);
+if(!window.qrcode)setTimeout(()=>alert('Bibliothèques QR non chargées : connexion Internet requise au premier chargement.'),800);
 route();
 </script>
 </body></html>
